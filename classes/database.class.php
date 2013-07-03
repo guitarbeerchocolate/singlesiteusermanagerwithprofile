@@ -3,64 +3,52 @@ class database
 {
 	private $config;
 	private $connection;
-
-	function __construct($file = NULL)
+	function __construct()
 	{
-		if($file != NULL)
+		$this->config = new config;
+		if(is_null($this->config->values->DB_PASSWORD) || empty($this->config->values->DB_PASSWORD) || !isset($this->config->values->DB_PASSWORD) || !property_exists($this->config, 'values->DB_PASSWORD'))
 		{
-			$this->config = new config($file);
+			$this->config->values->DB_PASSWORD = '';
 		}
-		else
-		{
-			$this->config = new config;
-		}		
-		$this->connection = mysql_connect($this->config->values->DB_HOST, $this->config->values->DB_USERNAME, $this->config->values->DB_PASSWORD) or die('Connection to host failed.'.mysql_error());
-		mysql_select_db($this->config->values->DB_NAME) or die('Database is not available.');
+		$this->connection = new mysqli($this->config->values->DB_HOST, $this->config->values->DB_USERNAME, $this->config->values->DB_PASSWORD, $this->config->values->DB_NAME);
 	}
 
-	/* Example usage
-	$results = $db->query("SELECT * FROM `users`");
-	foreach($results as $row)
+	function query($q)
 	{
-		echo $row->id.'<br />';
-	} */
-	public function query($q)
-	{
-		$results = mysql_query($q, $this->connection);
-		if(!$results)
+		$objArray = array();
+		if($result = $this->connection->query($q))
 		{
-    		die('Invalid query: '.mysql_error());
+			while($obj = $result->fetch_object())
+		    {
+				array_push($objArray,$obj);
+		    }
+			$result->close();
 		}
-		else
+		return (object) $objArray;
+	}
+
+	function singleRow($q)
+	{
+		$result = $this->connection->query($q);
+		if(!is_bool($result))
 		{
-			$objArray = array();
-			while($row = mysql_fetch_assoc($results))
-			{
-				array_push($objArray, (object) $row);
-			}
-			return $objArray;
+			return $result->fetch_object();
 		}
 	}
 
-	/* Example usage
-	$result = $db->singleRow("SELECT * FROM `users` WHERE `id`='2'");
-	echo $result->username;
-	*/
-	public function singleRow($q)
+	function escape($s)
 	{
-		$result = mysql_query($q);
-		$this->row = mysql_fetch_assoc($result);
-		return (object) $this->row;
+		return $this->connection->real_escape_string($s);
 	}
 
-	public function lastAdded()
+	function lastAdded()
 	{
-		return mysql_insert_id();
+		return $this->connection->insert_id;
 	}
 
 	function __destruct()
 	{
-		$this->connection = NULL;
+		$this->connection->close();
 	}
 }
 ?>

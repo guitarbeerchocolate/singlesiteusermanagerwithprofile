@@ -1,5 +1,7 @@
 <?php
-error_reporting(E_ALL);
+ini_set('display_errors',1);
+ini_set('display_startup_errors',1);
+error_reporting(-1);
 require_once 'classes/autoload.php';
 class httphandler
 {
@@ -11,6 +13,7 @@ class httphandler
 
   function __construct($get = NULL, $post = NULL, $file = NULL)
   {
+    $this->config = new config;
     if(!empty($get))
     {
      $this->getObject = (object) $get;
@@ -92,13 +95,19 @@ class httphandler
   {
     $auth = new authenticate;
     $result = $auth->login($this->postObject->username, $this->postObject->password);
-    if(strtolower($result) == 'index.php')
+    $headerString = 'Location:'.$result;
+    if($result == NULL)
     {
-      $session = new session;
-      $session->setMessageSession('general', 'Invalid username and password combination.');
+      $headerString .= 'index.php?message=';
+      $headerString .= urlencode('Who are you?');
+    }
+    else
+    {
+      $headerString .= '?message=';
+      $headerString .= urlencode('Welcome');
     }
     session_regenerate_id(true);
-    header('Location:'.$result);
+    header($headerString);
     session_write_close();
   }
 
@@ -106,30 +115,36 @@ class httphandler
   {
     $auth = new authenticate;
     $result = $auth->requestpasswordreset($this->postObject->username);
+    $headerString = 'Location:';
     if(isset($result->id))
     {
-      $str = 'index.php?tprid='.$result->id.'&usr='.$result->username.'&pwd='.$result->password;
-      header('Location:'.$str);
+      $email = new electronicmail;
+      $email->to = $result->username;
+      $email->from = $this->config->values->MAILBOX_NAME;
+      $email->subject = 'Password reset';
+      $email->textmessage = 'Please use the following link to reset your password'.PHP_EOL;
+      $email->textmessage .= $this->config->values->WEB_LOCATION;
+      $email->textmessage .= 'resetpasswordform?tprid='.$result->id.'&usr='.$result->username.'&pwd='.$result->password;
+      $response = $email->sendemail();
+      $headerString .= 'index.php?message=';
+      $headerString .= urlencode('A message has been sent your your email account.');
     }
     else
     {
-      $session = new session;
-      $session->setMessageSession('general','User unknown');
-      session_regenerate_id(true);
-      header('Location:index.php');
-      session_write_close();
+      $headerString .= 'index.php?message=';
+      $headerString .= urlencode('User unknown');
     }
+    header($headerString);
   }
 
   function resetpassword()
   {
     $auth = new authenticate;
     $result = $auth->resetpassword($this->postObject->id, $this->postObject->username, $this->postObject->password);
-    $session = new session;
-    $session->setMessageSession('general','Password reset');
-    session_regenerate_id(true);
-    header('Location:index.php');
-    session_write_close();
+    $headerString = 'Location:';
+    $headerString .= 'index.php?message=';
+    $headerString .= urlencode('Password reset');
+    header($headerString);
   }
 
   function selfregister()
@@ -137,32 +152,38 @@ class httphandler
     $auth = new authenticate;
     $session = new session;
     $nextPage = 'index.php';
+    $headerString = 'Location:';
 
     /* Check if the passwords match */
     if($auth->passwordmatch($this->postObject->password1, $this->postObject->password2) == FALSE)
     {
-      $session->setMessageSession('general','Passwords do not match');
+      $headerString .= 'index.php?message=';
+      $headerString .= urlencode('Passwords do not match');
     }
     else
     {
-      $pwd = md5($this->postObject->password1);
       /* Check if the user already exists */
       if($auth->userAlreadyExists($this->postObject->username) == TRUE)
       {
-        $session->setMessageSession('general','User already exists');
+        $headerString .= 'index.php?message=';
+        $headerString .= urlencode('User already exists');
       }
       else
       {
-        $nextPage = $auth->selfregister($this->postObject->username, $pwd);
+        $nextPage = $auth->selfregister($this->postObject->username, $this->postObject->password1);
         if(strtolower($nextPage) == 'index.php')
         {
-          $session->setMessageSession('general','You are on the waiting list');
+          $headerString .= 'index.php?message=';
+          $headerString .= urlencode('You are on the waiting list');
+        }
+        else
+        {
+          $headerString .= $nextPage;
         }
       }
     }
-
     session_regenerate_id(true);
-    header('Location:'.$nextPage);
+    header($headerString);
     session_write_close();
   }
 
@@ -170,8 +191,7 @@ class httphandler
   {
     $session = new session;
     $session->setUserSession($this->postObject->userid, $this->postObject->username);
-    $config = new config;
-    $config->updateini($this->postObject);
+    $this->config->updateini($this->postObject);
     session_regenerate_id(true);
     $url = 'private.php?sessionid='.$this->postObject->sessid;
     header('Location:'.$url);
