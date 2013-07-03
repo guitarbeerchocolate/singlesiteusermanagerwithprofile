@@ -1,4 +1,7 @@
 <?php
+@session_start();
+include_once 'classes/autoload.php';
+include_once 'includes/privatesetup.inc.php';
 $p = new profile;
 $p->getProfile($session->userid);
 ?>

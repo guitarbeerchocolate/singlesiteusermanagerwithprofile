@@ -1,7 +1,4 @@
 <?php
-ini_set('display_errors',1);
-ini_set('display_startup_errors',1);
-error_reporting(-1);
 require_once 'classes/autoload.php';
 class httphandler
 {
@@ -253,14 +250,8 @@ class httphandler
     }
     session_regenerate_id(true);
     $profile = new profile;
-    var_dump($this->postObject);
-    echo '<br /><br />';
-    echo $photo;
-    echo '<br /><br />';
-    echo $type;
-    echo '<br /><br />';
     $profile->update($this->postObject, $photo, $type);
-    $url = 'private.php?sessionid='.$this->postObject->sessid;
+    $url = 'private';
     header('Location:'.$url);
     session_write_close();
   }
